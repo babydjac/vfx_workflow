@@ -5,10 +5,20 @@ import zipfile
 import torch
 from PIL import Image
 import gradio as gr
-from modules import scripts, script_callbacks
+from modules import scripts, script_callbacks, shared, util
 
-# Define the base directory for project folders
-PARENT_DIR = "/path/to/project"  # Update this path to your project base directory
+extension_root = scripts.basedir()
+default_projects_dir = util.truncate_path(os.path.join(extension_root, 'projects'))
+shared.options_templates.update(shared.options_section(('saving-paths', 'Paths for saving'), {
+    'vfx_workflow_projects_dir': shared.OptionInfo(
+        '', 'Projects directory for VFS Workflow', component_args=shared.hide_dirs).info(
+        f'if empty use {default_projects_dir}'
+    ),
+}))
+
+
+def projects_dir() -> str:
+    return shared.opts.vfx_workflow_projects_dir.strip() or default_projects_dir
 
 
 # Frame Extraction Function
@@ -17,10 +27,10 @@ def extract_frames(project_title, video_file):
     if not project_title:
         return [], "Error: Project Title is required."
 
-    frame_dir = os.path.join(PARENT_DIR, project_title, "video_frames")
+    frame_dir = os.path.join(projects_dir(), project_title, "video_frames")
     os.makedirs(frame_dir, exist_ok=True)
 
-    fps_file = os.path.join(PARENT_DIR, project_title, "fps.txt")
+    fps_file = os.path.join(projects_dir(), project_title, "fps.txt")
     video_path = video_file.name
 
     try:
@@ -61,8 +71,8 @@ def create_masks(project_title, use_fast_mode=False, use_jit=True):
     if not project_title:
         return [], "Error: Project Title is required."
 
-    frame_dir = os.path.join(PARENT_DIR, project_title, "video_frames")
-    mask_dir = os.path.join(PARENT_DIR, project_title, "video_masks")
+    frame_dir = os.path.join(projects_dir(), project_title, "video_frames")
+    mask_dir = os.path.join(projects_dir(), project_title, "video_masks")
     os.makedirs(mask_dir, exist_ok=True)
 
     try:
@@ -95,8 +105,8 @@ def extract_keyframes(project_title, include_first_last=False, max_keyframes_per
     if not project_title:
         return [], "Error: Project Title is required."
 
-    frame_dir = os.path.join(PARENT_DIR, project_title, "video_frames")
-    keyframe_dir = os.path.join(PARENT_DIR, project_title, "keyframes")
+    frame_dir = os.path.join(projects_dir(), project_title, "video_frames")
+    keyframe_dir = os.path.join(projects_dir(), project_title, "keyframes")
 
     if not os.path.exists(frame_dir):
         return [], "Error: Ensure 'video_frames' directory exists in the project folder."
@@ -119,7 +129,7 @@ def extract_keyframes(project_title, include_first_last=False, max_keyframes_per
     if total_keyframes > max_keyframes_per_folder:
         subfolder_count = (total_keyframes - 1) // max_keyframes_per_folder + 1
         for folder_idx in range(subfolder_count):
-            subfolder_path = os.path.join(PARENT_DIR, project_title, str(folder_idx + 1))
+            subfolder_path = os.path.join(projects_dir(), project_title, str(folder_idx + 1))
             os.makedirs(subfolder_path, exist_ok=True)
 
             sub_frame_dir = os.path.join(subfolder_path, "video_frames")
@@ -153,7 +163,7 @@ def rename_img2img_output(project_title):
     if not project_title:
         return "Error: Project Title is required."
 
-    img2img_output_dir = os.path.join(PARENT_DIR, project_title, "img2img_output")
+    img2img_output_dir = os.path.join(projects_dir(), project_title, "img2img_output")
     if not os.path.exists(img2img_output_dir):
         return f"Error: img2img_output directory not found: {img2img_output_dir}"
 
@@ -178,8 +188,8 @@ def generate_zip(project_title):
     if not project_title:
         return None, "Error: Project Title is required."
 
-    project_path = os.path.join(PARENT_DIR, project_title)
-    zip_path = os.path.join(project_path, f"{project_title}.zip")
+    project_path = os.path.join(projects_dir(), project_title)
+    zip_path = os.path.join(projects_dir(), f"{project_title}.zip")
 
     try:
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
@@ -204,7 +214,7 @@ def get_batch_instructions(project_title):
     if not project_title:
         return "Error: Project Title is required."
 
-    project_path = os.path.join(PARENT_DIR, project_title)
+    project_path = os.path.join(projects_dir(), project_title)
     keyframe_dir = os.path.join(project_path, "keyframes")
     output_dir = os.path.join(project_path, "img2img_output")
     mask_dir = os.path.join(project_path, "video_masks")
